@@ -12,9 +12,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -31,8 +31,8 @@ fun SheetContentColumn(
     content: @Composable () -> Unit,
 ) {
     val scrollState = rememberScrollState()
-    val overflowReporter by rememberUpdatedState(LocalLiquidSheetContentOverflowReporter.current)
-    val managedScrollableContentReporter by rememberUpdatedState(
+    val overflowReporter = rememberUpdatedState(LocalLiquidSheetContentOverflowReporter.current)
+    val managedScrollableContentReporter = rememberUpdatedState(
         LocalLiquidSheetManagedScrollableContentReporter.current,
     )
     val scrollModifier =
@@ -42,10 +42,15 @@ fun SheetContentColumn(
             Modifier
         }
     LaunchedEffect(scrollable) {
-        managedScrollableContentReporter(scrollable)
+        snapshotFlow { managedScrollableContentReporter.value }
+            .collect { it(scrollable) }
     }
-    LaunchedEffect(scrollable, scrollState.maxValue) {
-        overflowReporter(scrollable && scrollState.maxValue > 0)
+    LaunchedEffect(scrollState, scrollable) {
+        // A detent drag changes maxValue on every layout pass. Observe only the overflow decision
+        // from the coroutine, so those height changes neither recompose this container nor restart
+        // its effect. snapshotFlow also suppresses repeated reports while the decision is unchanged.
+        snapshotFlow { (scrollable && scrollState.maxValue > 0) to overflowReporter.value }
+            .collect { (overflows, report) -> report(overflows) }
     }
     // The sheet reads this state directly in its nested-scroll callbacks. See
     // [LiquidSheetContentScroll] for why the reporter round trip this replaces could not be made
@@ -63,10 +68,10 @@ fun SheetContentColumn(
         if (scrollable) contentScroll?.attach(scrollSource)
         onDispose { contentScroll?.detach(scrollSource) }
     }
-    DisposableEffect(scrollable, overflowReporter, managedScrollableContentReporter) {
+    DisposableEffect(scrollable) {
         onDispose {
-            overflowReporter(false)
-            managedScrollableContentReporter(false)
+            overflowReporter.value(false)
+            managedScrollableContentReporter.value(false)
         }
     }
     Column(

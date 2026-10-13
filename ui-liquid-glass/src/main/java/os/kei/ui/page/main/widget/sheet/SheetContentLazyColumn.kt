@@ -14,9 +14,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -59,20 +59,23 @@ fun SheetContentLazyColumn(
     content: LazyListScope.() -> Unit,
 ) {
     val state = rememberLazyListState()
-    val overflowReporter by rememberUpdatedState(LocalLiquidSheetContentOverflowReporter.current)
-    val managedScrollableContentReporter by rememberUpdatedState(
+    val overflowReporter = rememberUpdatedState(LocalLiquidSheetContentOverflowReporter.current)
+    val managedScrollableContentReporter = rememberUpdatedState(
         LocalLiquidSheetManagedScrollableContentReporter.current,
     )
 
     LaunchedEffect(Unit) {
-        managedScrollableContentReporter(true)
+        snapshotFlow { managedScrollableContentReporter.value }
+            .collect { it(true) }
     }
     // `canScrollForward || canScrollBackward` stands in for the eager column's `maxValue > 0`. Both
     // flags are false only while the content fits, and they settle after the first layout pass, so
     // this reports the same thing one frame later than a measured extent would.
-    val overflows = state.canScrollForward || state.canScrollBackward
-    LaunchedEffect(overflows) {
-        overflowReporter(overflows)
+    LaunchedEffect(state) {
+        // Reaching either list edge changes the individual flags even when the list still overflows.
+        // Keep these layout/scroll reads out of composition and publish only their combined result.
+        snapshotFlow { (state.canScrollForward || state.canScrollBackward) to overflowReporter.value }
+            .collect { (overflows, report) -> report(overflows) }
     }
 
     val contentScroll = LocalLiquidSheetContentScroll.current
@@ -83,8 +86,8 @@ fun SheetContentLazyColumn(
     }
     DisposableEffect(Unit) {
         onDispose {
-            overflowReporter(false)
-            managedScrollableContentReporter(false)
+            overflowReporter.value(false)
+            managedScrollableContentReporter.value(false)
         }
     }
 
