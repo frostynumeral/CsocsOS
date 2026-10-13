@@ -70,7 +70,7 @@ class StudentGuideLocalBackdropFallbackTest {
                             onLongClick = { capsuleLongClicks++ },
                         )
                         GuideAudioSeekBar(
-                            progress = 0.25f,
+                            progress = { 0.25f },
                             enabled = true,
                             onSeekStarted = {},
                             onSeekChanged = { changedProgress = it },

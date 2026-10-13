@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -189,6 +190,7 @@ internal fun BindGuideGalleryAudioPlayerEffects(
     onPlaybackEnded: () -> Unit = {},
 ) {
     val player = state.player
+    val seeking by remember(state) { derivedStateOf { state.seekProgress != null } }
     val latestOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
     LaunchedEffect(player, state.loopEnabled) {
         player?.repeatMode =
@@ -285,7 +287,7 @@ internal fun BindGuideGalleryAudioPlayerEffects(
         state.audioTargetUrl,
         state.isPlaying,
         state.isBuffering,
-        state.seekProgress,
+        seeking,
         player,
     ) {
         val currentPlayer =
@@ -296,7 +298,7 @@ internal fun BindGuideGalleryAudioPlayerEffects(
                 return@LaunchedEffect
             }
 
-        if (state.seekProgress != null) return@LaunchedEffect
+        if (seeking) return@LaunchedEffect
 
         if (!state.isPlaying && !state.isBuffering) {
             val duration = currentPlayer.duration

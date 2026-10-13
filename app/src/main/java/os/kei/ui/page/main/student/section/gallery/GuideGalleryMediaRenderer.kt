@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -240,28 +243,13 @@ internal fun GuideGalleryCardContent(
         }
         if (normalizedMediaType == "audio" && audioTargetUrl.isNotBlank()) {
             GuideAudioSeekBar(
-                progress = audioState.displayProgress,
+                progress = { audioState.displayProgress },
                 enabled = audioState.resolvedDurationMs > 0L && audioState.player != null,
                 onSeekStarted = { audioState.startSeekPreview() },
                 onSeekChanged = { fraction -> audioState.updateSeekPreview(fraction) },
                 onSeekFinished = { fraction -> audioState.finishSeek(fraction) },
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = formatAudioDuration(audioState.displayPositionMs),
-                    color = MiuixTheme.colorScheme.onBackgroundVariant,
-                    fontSize = 12.sp,
-                )
-                Text(
-                    text = formatAudioDuration(audioState.resolvedDurationMs),
-                    color = MiuixTheme.colorScheme.onBackgroundVariant,
-                    fontSize = 12.sp,
-                )
-            }
+            GuideAudioTimeLabels(audioState)
         }
         if (noteLinks.isNotEmpty()) {
             Column(
@@ -342,5 +330,29 @@ internal fun GuideGalleryCardContent(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+@Composable
+private fun GuideAudioTimeLabels(audioState: GuideGalleryAudioPlayerState) {
+    // The player polls five times per second; these labels only display whole seconds. Keep that
+    // clock in a leaf scope and avoid formatting or recomposing the media card for subsecond ticks.
+    val positionSeconds by remember(audioState) { derivedStateOf { audioState.displayPositionMs / 1_000L } }
+    val durationSeconds by remember(audioState) { derivedStateOf { audioState.resolvedDurationMs / 1_000L } }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = formatAudioDuration(positionSeconds * 1_000L),
+            color = MiuixTheme.colorScheme.onBackgroundVariant,
+            fontSize = 12.sp,
+        )
+        Text(
+            text = formatAudioDuration(durationSeconds * 1_000L),
+            color = MiuixTheme.colorScheme.onBackgroundVariant,
+            fontSize = 12.sp,
+        )
     }
 }

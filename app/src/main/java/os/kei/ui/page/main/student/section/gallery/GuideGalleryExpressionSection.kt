@@ -70,7 +70,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun GuideAudioSeekBar(
-    progress: Float,
+    progress: () -> Float,
     enabled: Boolean,
     onSeekStarted: () -> Unit,
     onSeekChanged: (Float) -> Unit,
@@ -85,7 +85,7 @@ internal fun GuideAudioSeekBar(
                 .height(48.dp),
     ) {
         LiquidMusicProgressSlider(
-            value = { progress.coerceIn(0f, 1f) },
+            value = { progress().coerceIn(0f, 1f) },
             onValueChange = { value -> onSeekChanged(value.coerceIn(0f, 1f)) },
             onValueChangeFinished = { value -> onSeekFinished(value.coerceIn(0f, 1f)) },
             onInteractionChanged = { active ->
