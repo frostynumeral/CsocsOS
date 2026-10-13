@@ -13,9 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -104,22 +107,26 @@ internal fun BaAccountPagerCard(
             ),
     ) { page ->
         val account = accounts[page]
-        val pageOffset =
-            abs(
-                (pagerState.currentPage - page) +
-                    pagerState.currentPageOffsetFraction,
-            )
+        val effectsEnabled by rememberBaAccountPageEffectsEnabled(pagerState, page)
         BaAccountPageCard(
             backdrop = backdrop,
             account = account,
             page = page,
             pageCount = accounts.size,
             serverOptions = serverOptions,
-            effectsEnabled = pageOffset < AccountPageLiquidActivationDistance,
+            effectsEnabled = effectsEnabled,
             onEditAccount = { onEditAccount(account.id) },
         )
     }
 }
+
+@Composable
+internal fun rememberBaAccountPageEffectsEnabled(pagerState: PagerState, page: Int): State<Boolean> =
+    remember(pagerState, page) {
+        derivedStateOf {
+            abs((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction) < AccountPageLiquidActivationDistance
+        }
+    }
 
 @Composable
 private fun BaAccountLoadingCard(backdrop: Backdrop?) {

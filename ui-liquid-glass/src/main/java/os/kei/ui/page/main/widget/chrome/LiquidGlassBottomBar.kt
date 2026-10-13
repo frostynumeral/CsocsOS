@@ -5,6 +5,7 @@ package os.kei.ui.page.main.widget.chrome
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -36,6 +37,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -122,7 +124,7 @@ fun RowScope.LiquidGlassBottomBarItem(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val selectedScale = LocalLiquidGlassBottomBarTabScale.current
-    val selectionProgress = liquidGlassBottomBarItemSelectionProgress(tabIndex)
+    val selectionProgress = LocalLiquidGlassBottomBarSelectionProgress.current
     val interactive = LocalLiquidGlassBottomBarItemInteractive.current
     val onItemPressed = LocalLiquidGlassBottomBarItemPressHandler.current
     val currentOnClick by rememberUpdatedState(onClick)
@@ -130,17 +132,29 @@ fun RowScope.LiquidGlassBottomBarItem(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    val targetScale =
-        when {
-            selected || selectionProgress > 0f -> lerp(1f, selectedScale(), selectionProgress)
-            else -> 1f
+    val targetScale = remember(selected, tabIndex, selectedScale, selectionProgress) {
+        {
+            val progress = selectionProgress(tabIndex)
+            if (selected || progress > 0f) lerp(1f, selectedScale(), progress) else 1f
         }
-    val scaleState =
-        appMotionFloatState(
-            targetValue = targetScale,
-            durationMillis = 160,
-            label = "liquid_bottom_bar_item_scale",
-        )
+    }
+    val animationsEnabled = LocalTransitionAnimationsEnabled.current
+    val scaleAnimation = remember {
+        Snapshot.withoutReadObservation {
+            Animatable(targetScale())
+        }
+    }
+    LaunchedEffect(targetScale, animationsEnabled) {
+        // Selected-tab deformation changes every press frame. Observe it here so the tab's text,
+        // icon, interaction source and semantics do not recompose to retarget the layer animation.
+        snapshotFlow(targetScale).collectLatest { target ->
+            if (scaleAnimation.value != target) {
+                if (animationsEnabled) scaleAnimation.animateTo(target, tween(durationMillis = 160))
+                else scaleAnimation.snapTo(target)
+            }
+        }
+    }
+    val scaleState = scaleAnimation.asState()
     val scaleProvider = remember(scaleState) { { scaleState.value } }
     LaunchedEffect(interactive, enabled, isPressed, tabIndex) {
         if (interactive) {
