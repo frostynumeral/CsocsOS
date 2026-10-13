@@ -6,6 +6,8 @@ cd "$ROOT_DIR"
 
 WITH_AUDIT=1
 FETCH_AUDIT=1
+# Keep compiler/test processes bounded on cloud and CI workers; local callers can opt into more.
+GRADLE_QA_ARGS=(--max-workers="${COMPOSE_QA_MAX_WORKERS:-2}")
 STAMP="${COMPOSE_AUDIT_STAMP:-$(date +%Y%m%d-%H%M%S)}"
 ARTIFACT_DIR="${COMPOSE_AUDIT_ARTIFACT_DIR:-$ROOT_DIR/artifacts/compose-audit-$STAMP}"
 
@@ -16,6 +18,11 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --no-fetch)
+      FETCH_AUDIT=0
+      shift
+      ;;
+    --offline)
+      GRADLE_QA_ARGS+=(--offline)
       FETCH_AUDIT=0
       shift
       ;;
@@ -107,12 +114,26 @@ write_metric_summary() {
 
 printf 'Compose QA artifacts: %s\n' "$ARTIFACT_DIR"
 
-run_step "Debug Kotlin compile" ./gradlew :app:compileDebugKotlin
-run_step "Markdown parser unit test" ./gradlew :app:testDebugUnitTest --tests os.kei.ui.page.main.widget.markdown.AppMarkdownParserTest
+run_step "Debug Kotlin compile" ./gradlew "${GRADLE_QA_ARGS[@]}" :app:compileDebugKotlin
+run_step "Markdown parser unit test" ./gradlew "${GRADLE_QA_ARGS[@]}" :app:testDebugUnitTest --tests os.kei.ui.page.main.widget.markdown.AppMarkdownParserTest
+run_step "Compose recomposition regressions" ./gradlew "${GRADLE_QA_ARGS[@]}" \
+  :ui-liquid-glass:testDebugUnitTest \
+  --tests os.kei.ui.page.main.widget.sheet.SheetContentRecompositionTest \
+  --tests os.kei.ui.page.main.widget.glass.AppFloatingKeyboardLiftRecompositionTest \
+  --tests os.kei.ui.page.main.widget.glass.LiquidSliderRecompositionTest \
+  --tests os.kei.ui.page.main.widget.chrome.LiquidBottomBarRecompositionTest \
+  :app:testDebugUnitTest \
+  --tests os.kei.ui.page.main.student.section.GuideSectionVoiceInteractionTest \
+  --tests os.kei.ui.page.main.student.page.support.GuideSyncProgressRecompositionTest \
+  --tests os.kei.ui.page.main.student.section.gallery.GuideGalleryAudioRecompositionTest \
+  --tests os.kei.ui.page.main.student.catalog.component.BaGuideBgmMiniPlayerRecompositionTest \
+  --tests os.kei.ui.page.main.ba.card.BaAccountPagerRecompositionTest \
+  --tests os.kei.ui.page.main.widget.chrome.AppPageScaffoldInteractionTest \
+  --tests os.kei.ui.page.main.widget.chrome.AppPageInsetRecompositionTest
 
 if [[ "$WITH_AUDIT" -eq 1 ]]; then
   if AUDIT_INIT_SCRIPT="$(resolve_audit_init_script)"; then
-    run_step "Release Compose audit" ./gradlew clean :app:compileReleaseKotlin --init-script "$AUDIT_INIT_SCRIPT" --no-daemon --quiet --max-workers=2
+    run_step "Release Compose audit" ./gradlew "${GRADLE_QA_ARGS[@]}" clean :app:compileReleaseKotlin --init-script "$AUDIT_INIT_SCRIPT" --no-daemon --quiet
     copy_audit_outputs
     write_metric_summary
   else
