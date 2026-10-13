@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -378,7 +379,11 @@ private fun LiquidTrackSlider(
             ) {
                 DampedDragAnimation(
                     animationScope = animationScope,
-                    initialValue = valueResolver.resolve(value(), safeValueRange),
+                    // The value observer below owns subsequent ticks. Initializing the animation
+                    // must not subscribe this subcomposition to the first external value change.
+                    initialValue = Snapshot.withoutReadObservation {
+                        valueResolver.resolve(value(), safeValueRange)
+                    },
                     valueRange = safeValueRange,
                     visibilityThreshold = visibilityThreshold,
                     initialScale = 1f,
@@ -556,25 +561,14 @@ private fun LiquidTrackSlider(
             safeKeyPoints.forEach { keyPoint ->
                 val progress = valueProgress(keyPoint.value, safeValueRange)
                 val visualKeyPointProgress = sliderVisualProgress(progress, isLtr)
-                // P1: derivedStateOf so a keypoint only recomposes when the thumb actually crosses it,
-                // instead of every frame the drag animation reads `progress`.
-                val isActive by remember(dampedDragAnimation, progress) {
-                    derivedStateOf { dampedDragAnimation.progress >= progress }
-                }
-                Box(
-                    Modifier
-                        .graphicsLayer {
-                            // A dot marks a value, so it has to sit where the thumb's centre will land on
-                            // that value — the same inset mapping, or the thumb stops covering the dot it
-                            // snaps to. Its own half-width is then taken off to centre the dot itself.
-                            translationX =
-                                liquidSliderCenterAt(
-                                    trackWidth = trackWidthPx,
-                                    thumbWidth = thumbWidthPx,
-                                    progress = visualKeyPointProgress,
-                                ) - size.width / 2f
-                        }.appSquircleBackground(resolveKeyPointColor(keyPoint, style, isActive), 999.dp)
-                        .size(keyPoint.size),
+                LiquidSliderKeyPointDot(
+                    keyPoint = keyPoint,
+                    style = style,
+                    animation = dampedDragAnimation,
+                    progress = progress,
+                    visualProgress = visualKeyPointProgress,
+                    trackWidthPx = trackWidthPx,
+                    thumbWidthPx = thumbWidthPx,
                 )
             }
         }
@@ -953,15 +947,35 @@ private class LiquidSliderHapticState {
 }
 
 @Composable
-private fun resolveKeyPointColor(
+private fun LiquidSliderKeyPointDot(
     keyPoint: LiquidSliderKeyPoint,
     style: LiquidTrackSliderStyle,
-    isActive: Boolean,
-): Color {
-    if (keyPoint.color.isSpecified) {
-        return keyPoint.color
+    animation: DampedDragAnimation,
+    progress: Float,
+    visualProgress: Float,
+    trackWidthPx: Float,
+    thumbWidthPx: Float,
+) {
+    val isActive by remember(animation, progress) {
+        derivedStateOf { animation.progress >= progress }
     }
-    return if (isActive) style.keyPointActiveColor else style.keyPointColor
+    // The Miuix background uses an SDF shader. Keep that exact rendering path and isolate its color
+    // changes here: crossing a dot must not recompose the slider's material or gesture tree. A dot
+    // with an explicit color does not need to observe the animation at all.
+    val color = if (keyPoint.color.isSpecified) {
+        keyPoint.color
+    } else if (isActive) {
+        style.keyPointActiveColor
+    } else {
+        style.keyPointColor
+    }
+    Box(
+        Modifier
+            .graphicsLayer {
+                translationX = liquidSliderCenterAt(trackWidthPx, thumbWidthPx, visualProgress) - size.width / 2f
+            }.appSquircleBackground(color, 999.dp)
+            .size(keyPoint.size),
+    )
 }
 
 @Immutable

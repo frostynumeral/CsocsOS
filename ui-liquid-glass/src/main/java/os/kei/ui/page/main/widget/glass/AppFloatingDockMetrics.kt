@@ -2,17 +2,24 @@
 
 package os.kei.ui.page.main.widget.glass
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.collectLatest
 import os.kei.ui.page.main.widget.chrome.AppChromeTokens
 import os.kei.ui.page.main.widget.status.AppStatusColors
 
@@ -33,21 +40,51 @@ fun rememberAppFloatingKeyboardLiftState(
     focusedLift: Dp = 18.dp,
     restingBottomGap: Dp = 0.dp,
     label: String = "app_floating_keyboard_lift",
+): State<Dp> = rememberAppFloatingKeyboardLiftState(
+    imeInsets = WindowInsets.ime,
+    navigationBarInsets = WindowInsets.navigationBars,
+    focusedLift = focusedLift,
+    restingBottomGap = restingBottomGap,
+    label = label,
+)
+
+@Composable
+internal fun rememberAppFloatingKeyboardLiftState(
+    imeInsets: WindowInsets,
+    navigationBarInsets: WindowInsets,
+    focusedLift: Dp,
+    restingBottomGap: Dp,
+    label: String,
 ): State<Dp> {
-    val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
-    val navigationBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val targetLift =
-        appFloatingKeyboardLiftTarget(
-            imeBottom = imeBottom,
-            navigationBottom = navigationBottom,
-            focusedLift = focusedLift,
-            restingBottomGap = restingBottomGap,
-        )
-    return animateDpAsState(
-        targetValue = targetLift,
-        animationSpec = tween(durationMillis = AppFloatingKeyboardLiftMotionMs),
-        label = label,
-    )
+    val density = LocalDensity.current
+    val targetLift = remember(imeInsets, navigationBarInsets, density, focusedLift, restingBottomGap) {
+        {
+            with(density) {
+                appFloatingKeyboardLiftTarget(
+                    imeBottom = imeInsets.getBottom(this).toDp(),
+                    navigationBottom = navigationBarInsets.getBottom(this).toDp(),
+                    focusedLift = focusedLift,
+                    restingBottomGap = restingBottomGap,
+                )
+            }
+        }
+    }
+    val lift = remember {
+        // Match animateDpAsState's initial value even when mounted with the keyboard already open.
+        // This one-time read must not subscribe the host to every frame of the IME animation;
+        // snapshotFlow below owns that observation for the rest of the lifetime.
+        Snapshot.withoutReadObservation {
+            Animatable(targetLift(), Dp.VectorConverter, label = label)
+        }
+    }
+    LaunchedEffect(lift, targetLift) {
+        snapshotFlow(targetLift).collectLatest { target ->
+            if (lift.value != target) {
+                lift.animateTo(target, tween(durationMillis = AppFloatingKeyboardLiftMotionMs))
+            }
+        }
+    }
+    return lift.asState()
 }
 
 fun appFloatingKeyboardLiftTarget(
