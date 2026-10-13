@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -89,6 +90,7 @@ internal fun AppMarkdownBlocksContent(
     emptyText: String? = null,
     onOpenLink: ((String) -> Unit)? = null,
 ) {
+    val groups = remember(blocks) { markdownRenderGroups(blocks) }
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -99,26 +101,9 @@ internal fun AppMarkdownBlocksContent(
             }
             return@Column
         }
-        var index = 0
-        while (index < blocks.size) {
-            val block = blocks[index]
-            if (block is AppMarkdownBlock.TableRow) {
-                val rows = mutableListOf<AppMarkdownBlock.TableRow>()
-                while (index < blocks.size && blocks[index] is AppMarkdownBlock.TableRow) {
-                    rows += blocks[index] as AppMarkdownBlock.TableRow
-                    index += 1
-                }
-                AppMarkdownTable(
-                    rows = rows,
-                    titleColor = titleColor,
-                    subtitleColor = subtitleColor,
-                    accentColor = accentColor,
-                    onOpenLink = onOpenLink,
-                )
-                continue
-            }
-            AppMarkdownBlockView(
-                block = block,
+        groups.forEach { group ->
+            AppMarkdownRenderGroupView(
+                group = group,
                 titleColor = titleColor,
                 subtitleColor = subtitleColor,
                 accentColor = accentColor,
@@ -126,8 +111,82 @@ internal fun AppMarkdownBlocksContent(
                 paragraphMarker = paragraphMarker,
                 onOpenLink = onOpenLink,
             )
-            index += 1
         }
+    }
+}
+
+/** Shares the eager renderer's typography, selection, links and contiguous-table grouping. */
+internal fun LazyListScope.appMarkdownBlockItems(
+    blocks: List<AppMarkdownBlock>,
+    titleColor: Color,
+    subtitleColor: Color,
+    accentColor: Color,
+    codeContainerColor: Color,
+    onOpenLink: ((String) -> Unit)? = null,
+) {
+    val groups = markdownRenderGroups(blocks)
+    items(groups.size) { index ->
+        AppMarkdownRenderGroupView(
+            group = groups[index],
+            titleColor = titleColor,
+            subtitleColor = subtitleColor,
+            accentColor = accentColor,
+            codeContainerColor = codeContainerColor,
+            paragraphMarker = null,
+            onOpenLink = onOpenLink,
+        )
+    }
+}
+
+private sealed interface MarkdownRenderGroup {
+    data class Block(val value: AppMarkdownBlock) : MarkdownRenderGroup
+    data class Table(val rows: List<AppMarkdownBlock.TableRow>) : MarkdownRenderGroup
+}
+
+private fun markdownRenderGroups(blocks: List<AppMarkdownBlock>): List<MarkdownRenderGroup> = buildList {
+    var index = 0
+    while (index < blocks.size) {
+        val block = blocks[index]
+        if (block is AppMarkdownBlock.TableRow) {
+            val rows = mutableListOf<AppMarkdownBlock.TableRow>()
+            while (index < blocks.size && blocks[index] is AppMarkdownBlock.TableRow) {
+                rows += blocks[index++] as AppMarkdownBlock.TableRow
+            }
+            add(MarkdownRenderGroup.Table(rows))
+        } else {
+            add(MarkdownRenderGroup.Block(block))
+            index++
+        }
+    }
+}
+
+@Composable
+private fun AppMarkdownRenderGroupView(
+    group: MarkdownRenderGroup,
+    titleColor: Color,
+    subtitleColor: Color,
+    accentColor: Color,
+    codeContainerColor: Color,
+    paragraphMarker: String?,
+    onOpenLink: ((String) -> Unit)?,
+) {
+    when (group) {
+        is MarkdownRenderGroup.Table -> AppMarkdownTable(
+            rows = group.rows,
+            titleColor = titleColor,
+            subtitleColor = subtitleColor,
+            accentColor = accentColor,
+            onOpenLink = onOpenLink,
+        )
+        is MarkdownRenderGroup.Block -> AppMarkdownBlockView(
+            block = group.value,
+            titleColor = titleColor,
+            subtitleColor = subtitleColor,
+            accentColor = accentColor,
+            codeContainerColor = codeContainerColor,
+            paragraphMarker = paragraphMarker,
+            onOpenLink = onOpenLink,
+        )
     }
 }
 

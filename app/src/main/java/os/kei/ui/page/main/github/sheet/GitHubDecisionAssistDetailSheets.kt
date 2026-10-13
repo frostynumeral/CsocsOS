@@ -5,13 +5,14 @@ package os.kei.ui.page.main.github.sheet
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -19,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,8 +48,9 @@ import os.kei.ui.page.main.widget.glass.AppDropdownSelector
 import os.kei.ui.page.main.widget.glass.AppLiquidIconButton
 import os.kei.ui.page.main.widget.glass.AppLiquidTextButton
 import os.kei.ui.page.main.widget.glass.GlassVariant
-import os.kei.ui.page.main.widget.markdown.AppMarkdownBlocksContent
+import os.kei.ui.page.main.widget.markdown.appMarkdownBlockItems
 import os.kei.ui.page.main.widget.sheet.SheetContentColumn
+import os.kei.ui.page.main.widget.sheet.SheetContentLazyColumn
 import os.kei.ui.page.main.widget.sheet.SheetDescriptionText
 import os.kei.ui.page.main.widget.sheet.SheetSectionCard
 import os.kei.ui.page.main.widget.sheet.SheetSectionHeader
@@ -63,6 +67,10 @@ private data class ReleaseNotesFallbackLineUiState(
     val text: String,
     val accent: Boolean,
 )
+
+internal const val GitHubReleaseNotesBodyTestTag = "github_release_notes_body"
+internal const val GitHubReleaseNotesListTestTag = "github_release_notes_list"
+internal const val GitHubReleaseNotesContentTestTag = "github_release_notes_content"
 
 @Composable
 internal fun GitHubDecisionAssistDetailSheet(
@@ -236,7 +244,10 @@ private fun GitHubReleaseNotesDetailContent(
                 )
             }
         }
-    SheetContentColumn(verticalSpacing = 14.dp) {
+    // Bound the material rather than recording the entire document into one glass layer. The outer
+    // scroll keeps the summary/actions reachable at small detents; the inner list owns the document.
+    val bodyMaxHeight = LocalWindowInfo.current.containerDpSize.height * 0.75f
+    SheetContentColumn(modifier = Modifier.testTag(GitHubReleaseNotesContentTestTag), verticalSpacing = 14.dp) {
         SheetSummaryCard(
             title =
                 selectedTarget?.releaseName?.takeIf { it.isNotBlank() }
@@ -391,27 +402,33 @@ private fun GitHubReleaseNotesDetailContent(
             )
         }
         SheetSectionCard(
+            modifier = Modifier.heightIn(max = bodyMaxHeight).testTag(GitHubReleaseNotesBodyTestTag),
             containerColor = releaseNotesBodyContainerColor(),
             borderColor = MiuixTheme.colorScheme.onBackgroundVariant.copy(alpha = 0.18f),
             verticalSpacing = 10.dp,
         ) {
-            if (rawMarkdown.isNotBlank()) {
-                CompositionLocalProvider(LocalTextCopyExpandedOverride provides true) {
-                    AppMarkdownBlocksContent(
-                        blocks = releaseNotesDetailState.markdownBlocks,
-                        titleColor = MiuixTheme.colorScheme.onBackground,
-                        subtitleColor = MiuixTheme.colorScheme.onBackgroundVariant,
-                        accentColor = MiuixTheme.colorScheme.primary,
-                        codeContainerColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.10f),
-                        onOpenLink = onOpenExternalUrl,
-                    )
-                }
-            } else if (lines.isEmpty()) {
-                SheetDescriptionText(stringResource(R.string.github_release_notes_detail_empty))
-            } else {
-                CompositionLocalProvider(LocalTextCopyExpandedOverride provides true) {
-                    fallbackRows.forEach { row ->
-                        key(row.id) {
+            val colors = MiuixTheme.colorScheme
+            val emptyText = stringResource(R.string.github_release_notes_detail_empty)
+            CompositionLocalProvider(LocalTextCopyExpandedOverride provides true) {
+                SheetContentLazyColumn(
+                    modifier = Modifier.testTag(GitHubReleaseNotesListTestTag),
+                    contentPadding = PaddingValues(0.dp),
+                    verticalSpacing = if (rawMarkdown.isNotBlank()) 8.dp else 10.dp,
+                ) {
+                    if (rawMarkdown.isNotBlank()) {
+                        appMarkdownBlockItems(
+                            blocks = releaseNotesDetailState.markdownBlocks,
+                            titleColor = colors.onBackground,
+                            subtitleColor = colors.onBackgroundVariant,
+                            accentColor = colors.primary,
+                            codeContainerColor = colors.primary.copy(alpha = 0.10f),
+                            onOpenLink = onOpenExternalUrl,
+                        )
+                    } else if (lines.isEmpty()) {
+                        item { SheetDescriptionText(emptyText) }
+                    } else {
+                        items(fallbackRows.size, key = { fallbackRows[it].id }) { index ->
+                            val row = fallbackRows[index]
                             GitHubDecisionDetailTextLine(
                                 text = row.text,
                                 maxLines = Int.MAX_VALUE,
