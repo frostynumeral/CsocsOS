@@ -50,12 +50,14 @@ private val SheetContentBottomPadding = 12.dp
  * There is no `scrollable = false` mode: a lazy list is a scroll container by construction, and a
  * caller that does not want one wants the eager column. Padding moves to `contentPadding` so it
  * still scrolls with the content, matching where the eager column puts it (inside the scroll,
- * navigation-bar inset included).
+ * navigation-bar inset included). Override [contentPadding] for a viewport inside a card whose
+ * parent already supplies those insets and shadow spacing.
  */
 @Composable
 fun SheetContentLazyColumn(
     modifier: Modifier = Modifier,
     verticalSpacing: Dp = AppChromeTokens.pageSectionGapLarge,
+    contentPadding: PaddingValues? = null,
     content: LazyListScope.() -> Unit,
 ) {
     val state = rememberLazyListState()
@@ -91,16 +93,17 @@ fun SheetContentLazyColumn(
         }
     }
 
-    val navigationBarsBottom =
-        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val resolvedContentPadding = contentPadding ?: run {
+        val navigationBarsBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        PaddingValues(
+            top = SheetContentShadowEdgePadding,
+            bottom = SheetContentBottomPadding + SheetContentShadowEdgePadding + navigationBarsBottom,
+        )
+    }
     LazyColumn(
         state = state,
         modifier = modifier.fillMaxWidth(),
-        contentPadding =
-            PaddingValues(
-                top = SheetContentShadowEdgePadding,
-                bottom = SheetContentBottomPadding + SheetContentShadowEdgePadding + navigationBarsBottom,
-            ),
+        contentPadding = resolvedContentPadding,
         verticalArrangement = Arrangement.spacedBy(verticalSpacing),
         content = content,
     )

@@ -4,10 +4,8 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
@@ -46,11 +44,13 @@ class LiquidSheetContentScroll internal constructor() {
         val overflows: Boolean
     }
 
-    private var source by mutableStateOf<Source?>(null)
+    // A bounded document viewport can sit inside the sheet's outer scroller. Keep both live: a
+    // later attachment must not hide a scrolled parent, and disposing it must not detach the parent.
+    private val sources = mutableStateListOf<Source>()
 
-    /** True once the content has been scrolled away from its top, so it owns an upward drag. */
+    /** True while any participating content scroller is away from its top. */
     val canScrollUp: Boolean
-        get() = source?.canScrollUp == true
+        get() = sources.any { it.canScrollUp }
 
     /**
      * True when the content is taller than its viewport.
@@ -61,14 +61,15 @@ class LiquidSheetContentScroll internal constructor() {
      * hundred pixels of empty glass below the content.
      */
     val overflows: Boolean
-        get() = source?.overflows == true
+        get() = sources.any { it.overflows }
 
     internal fun attach(source: Source) {
-        this.source = source
+        if (sources.none { it === source }) sources.add(source)
     }
 
     internal fun detach(source: Source) {
-        if (this.source === source) this.source = null
+        val index = sources.indexOfFirst { it === source }
+        if (index >= 0) sources.removeAt(index)
     }
 }
 
