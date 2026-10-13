@@ -4,6 +4,8 @@ import androidx.compose.ui.graphics.Color
 import os.kei.ui.page.main.student.BaStudentGuideInfo
 import os.kei.ui.page.main.student.GuideBottomTab
 
+private val InactiveVoiceProgress: () -> Float = { 0f }
+
 internal data class BaStudentGuidePagerHeaderState(
     val title: String,
     val showSyncIndicator: Boolean,
@@ -14,7 +16,7 @@ internal data class BaStudentGuideTabRenderState(
     val activeBottomTab: GuideBottomTab,
     val playingVoiceUrl: String,
     val isVoicePlaying: Boolean,
-    val voicePlayProgress: Float,
+    val voicePlayProgress: () -> Float,
     val selectedVoiceLanguage: String
 )
 
@@ -41,7 +43,7 @@ internal fun resolveBaStudentGuideTabRenderState(
     bottomTabs: List<GuideBottomTab>,
     playingVoiceUrl: String,
     isVoicePlaying: Boolean,
-    voicePlayProgress: Float,
+    voicePlayProgress: () -> Float,
     selectedVoiceLanguage: String
 ): BaStudentGuideTabRenderState {
     val activeBottomTab = bottomTabs.getOrElse(pageIndex) { GuideBottomTab.Archive }
@@ -50,7 +52,7 @@ internal fun resolveBaStudentGuideTabRenderState(
         activeBottomTab = activeBottomTab,
         playingVoiceUrl = if (isVoiceTab) playingVoiceUrl else "",
         isVoicePlaying = isVoiceTab && isVoicePlaying,
-        voicePlayProgress = if (isVoiceTab) voicePlayProgress else 0f,
+        voicePlayProgress = if (isVoiceTab) voicePlayProgress else InactiveVoiceProgress,
         selectedVoiceLanguage = if (isVoiceTab) selectedVoiceLanguage else ""
     )
 }

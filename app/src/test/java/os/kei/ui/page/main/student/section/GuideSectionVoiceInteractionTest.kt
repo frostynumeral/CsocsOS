@@ -3,6 +3,10 @@ package os.kei.ui.page.main.student.section
 import android.app.Application
 import android.content.Context
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
@@ -26,6 +30,8 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import os.kei.R
 import os.kei.ui.page.main.student.BaGuideVoiceEntry
+import os.kei.ui.page.main.student.page.state.BaStudentGuideVoiceUiState
+import os.kei.ui.page.main.student.page.state.rememberBaStudentGuideVoicePlaybackState
 import os.kei.ui.page.main.widget.support.LocalTextCopyExpandedOverride
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -41,6 +47,50 @@ import top.yukonga.miuix.kmp.theme.ThemeController
 class GuideSectionVoiceInteractionTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun playbackProgressRedrawsTheRingWithoutRecomposingThePage() {
+        val voice = mutableStateOf(BaStudentGuideVoiceUiState(PLAYBACK_URL, true))
+        var pageCompositions = 0
+        var drawnProgress = -1f
+        var toggledUrl = ""
+        composeRule.setContent {
+            val playback by rememberBaStudentGuideVoicePlaybackState(voice)
+            val progress = remember(voice) {
+                {
+                    voice.value.voicePlayProgress.also { drawnProgress = it }
+                }
+            }
+            SideEffect { pageCompositions++ }
+            MiuixTheme(controller = ThemeController(ColorSchemeMode.Light)) {
+                CompositionLocalProvider(LocalTextCopyExpandedOverride provides false) {
+                    GuideVoiceEntryCard(
+                        entry = BaGuideVoiceEntry(section = "Test section", title = "Playing voice", lines = listOf("Voice line")),
+                        languageHeaders = listOf("Alpha"),
+                        backdrop = null,
+                        playbackUrl = playback.playingVoiceUrl,
+                        isPlaying = playback.isVoicePlaying,
+                        playProgress = progress,
+                        onTogglePlay = { toggledUrl = it },
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        val initialCompositions = pageCompositions
+        repeat(10) { step ->
+            composeRule.runOnIdle { voice.value = voice.value.copy(voicePlayProgress = (step + 1) / 10f) }
+            composeRule.waitForIdle()
+        }
+        composeRule.runOnIdle {
+            assertEquals(initialCompositions, pageCompositions)
+            assertEquals(1f, drawnProgress, "The ring must still draw the latest playback progress")
+            voice.value = voice.value.copy(isVoicePlaying = false)
+        }
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.guide_action_play)).performClick()
+        composeRule.runOnIdle { assertEquals(PLAYBACK_URL, toggledUrl) }
+    }
 
     @Test
     fun languageCardKeepsOnlyCopyAndLanguageActions() {
@@ -97,7 +147,7 @@ class GuideSectionVoiceInteractionTest {
                         backdrop = null,
                         playbackUrl = PLAYBACK_URL,
                         isPlaying = false,
-                        playProgress = 0f,
+                        playProgress = { 0f },
                         onTogglePlay = { toggledUrl = it },
                         modifier = Modifier.testTag(ENTRY_CARD_TAG),
                     )

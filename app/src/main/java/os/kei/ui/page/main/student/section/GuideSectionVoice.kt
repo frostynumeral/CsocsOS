@@ -121,7 +121,7 @@ fun GuideVoiceEntryCard(
     backdrop: Backdrop?,
     playbackUrl: String,
     isPlaying: Boolean,
-    playProgress: Float,
+    playProgress: () -> Float,
     onTogglePlay: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -191,7 +191,7 @@ fun GuideVoiceEntryCard(
                         ) {
                             if (isPlaying) {
                                 LiquidCircularProgressBar(
-                                    progress = { playProgress.coerceIn(0f, 1f) },
+                                    progress = { playProgress().coerceIn(0f, 1f) },
                                     size = 18.dp,
                                     strokeWidth = 2.dp,
                                     activeColor = Color(0xFF3B82F6),

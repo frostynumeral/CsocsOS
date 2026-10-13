@@ -71,12 +71,12 @@ internal fun BaStudentGuidePagerPage(
     surfaceColor: Color,
     accent: Color,
     innerPadding: PaddingValues,
-    syncProgress: Float,
+    syncProgress: () -> Float,
     galleryCacheRevision: Int,
     selectedVoiceLanguage: String,
     playingVoiceUrl: String,
     isVoicePlaying: Boolean,
-    voicePlayProgress: Float,
+    voicePlayProgress: () -> Float,
     bgmFavoriteAudioUrls: Set<String>,
     profileLinkTitles: Map<String, String>,
     profileLinkMissingLinks: Set<String>,
@@ -261,7 +261,7 @@ internal fun BaStudentGuidePagerPage(
                         }
                         if (headerState.showSyncIndicator) {
                             LiquidCircularProgressBar(
-                                progress = { syncProgress },
+                                progress = syncProgress,
                                 size = 18.dp,
                                 strokeWidth = 2.dp,
                                 activeColor = headerState.indicatorColor,

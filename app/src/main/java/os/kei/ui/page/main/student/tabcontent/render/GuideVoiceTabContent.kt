@@ -50,7 +50,7 @@ internal fun LazyListScope.renderGuideVoiceTabContent(
     galleryCacheRevision: Int,
     playingVoiceUrl: String,
     isVoicePlaying: Boolean,
-    voicePlayProgress: Float,
+    voicePlayProgress: () -> Float,
     selectedVoiceLanguage: String,
     onToggleVoicePlayback: (String) -> Unit,
     onSelectedVoiceLanguageChange: (String) -> Unit,
@@ -216,12 +216,13 @@ internal fun LazyListScope.renderGuideVoiceTabContent(
                     backdrop = backdrop,
                     playbackUrl = normalizedPlaybackUrl,
                     isPlaying = isCurrentPlayback,
-                    playProgress =
+                    playProgress = {
                         if (isCurrentPlayback) {
-                            voicePlayProgress
+                            voicePlayProgress()
                         } else {
                             0f
-                        },
+                        }
+                    },
                     onTogglePlay = onToggleVoicePlayback,
                 )
             }

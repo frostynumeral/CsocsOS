@@ -79,7 +79,8 @@ import os.kei.ui.page.main.student.page.state.rememberBaStudentGuidePageActions
 import os.kei.ui.page.main.student.page.state.rememberBaStudentGuideTabSelectCoordinator
 import os.kei.ui.page.main.student.page.state.rememberBaStudentGuideTopBarActionItems
 import os.kei.ui.page.main.student.page.state.rememberBaStudentGuideVoicePlayerController
-import os.kei.ui.page.main.student.page.support.rememberGuideSyncProgress
+import os.kei.ui.page.main.student.page.state.rememberBaStudentGuideVoicePlaybackState
+import os.kei.ui.page.main.student.page.support.rememberGuideSyncProgressState
 import os.kei.ui.page.main.widget.chrome.AppChromeTokens
 import os.kei.ui.page.main.widget.chrome.AppLiquidNavigationButton
 import os.kei.ui.page.main.widget.chrome.AppScaffold
@@ -147,7 +148,9 @@ fun BaStudentGuidePage(
     val guideMediaImageState by guideViewModel.mediaImageState.collectAsStateWithLifecycle()
     val profileLinkTitleState by guideViewModel.profileLinkTitleState.collectAsStateWithLifecycle()
     val pageChromeState by guideViewModel.pageChromeState.collectAsStateWithLifecycle()
-    val voiceUiState by guideViewModel.voiceUiState.collectAsStateWithLifecycle()
+    val voiceUiState = guideViewModel.voiceUiState.collectAsStateWithLifecycle()
+    val voicePlaybackState by rememberBaStudentGuideVoicePlaybackState(voiceUiState)
+    val voicePlayProgress = remember(voiceUiState) { { voiceUiState.value.voicePlayProgress } }
     val contentPresentationState by guideViewModel.contentPresentationState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(guideViewModel, lifecycleOwner) {
@@ -178,9 +181,8 @@ fun BaStudentGuidePage(
     val error = guideDataState.error
     val selectedBottomTabOrdinal = pageChromeState.selectedBottomTabOrdinal
     val selectedVoiceLanguage = pageChromeState.selectedVoiceLanguage
-    val playingVoiceUrl = voiceUiState.playingVoiceUrl
-    val isVoicePlaying = voiceUiState.isVoicePlaying
-    val voicePlayProgress = voiceUiState.voicePlayProgress
+    val playingVoiceUrl = voicePlaybackState.playingVoiceUrl
+    val isVoicePlaying = voicePlaybackState.isVoicePlaying
     val bottomTabsList =
         if (contentPresentationState.matches(info)) {
             contentPresentationState.bottomTabs
@@ -209,11 +211,12 @@ fun BaStudentGuidePage(
     val activeBottomTab = bottomTabsList.getOrElse(pagerState.currentPage) { GuideBottomTab.Archive }
     val settledBottomTab = bottomTabsList.getOrElse(pagerState.settledPage) { GuideBottomTab.Archive }
     val guideStaticPrefetchEnabled = info != null && !loading && error == null
-    val syncProgress =
-        rememberGuideSyncProgress(
+    val syncProgressState =
+        rememberGuideSyncProgressState(
             loading = loading,
             animationsEnabled = transitionAnimationsEnabled,
         )
+    val syncProgress = remember(syncProgressState) { { syncProgressState.value } }
     val navigationBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     // Six sections is one past the five a bottom bar can label on a phone, so on a panel this page takes
     // the same converted shape the pager offers: a leading rail with the labels down the side.

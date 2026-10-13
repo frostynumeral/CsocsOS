@@ -28,7 +28,7 @@ internal fun LazyListScope.renderBaStudentGuideTabContent(
     galleryCacheRevision: Int,
     playingVoiceUrl: String,
     isVoicePlaying: Boolean,
-    voicePlayProgress: Float,
+    voicePlayProgress: () -> Float,
     selectedVoiceLanguage: String,
     bgmFavoriteAudioUrls: Set<String>,
     profileLinkTitles: Map<String, String>,

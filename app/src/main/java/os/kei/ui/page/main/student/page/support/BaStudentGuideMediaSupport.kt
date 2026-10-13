@@ -6,6 +6,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.core.net.toUri
 import os.kei.ui.page.main.student.BaGuideRow
@@ -110,10 +111,10 @@ internal fun collectGuideMediaCacheUrls(info: BaStudentGuideInfo): List<String> 
 }
 
 @Composable
-internal fun rememberGuideSyncProgress(
+internal fun rememberGuideSyncProgressState(
     loading: Boolean,
     animationsEnabled: Boolean,
-): Float {
+): State<Float> {
     val progress = remember { Animatable(0f) }
     LaunchedEffect(loading, animationsEnabled) {
         if (!animationsEnabled) {
@@ -149,5 +150,5 @@ internal fun rememberGuideSyncProgress(
             )
         }
     }
-    return progress.value
+    return progress.asState()
 }
