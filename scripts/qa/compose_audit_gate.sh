@@ -119,6 +119,7 @@ run_step "Markdown parser unit test" ./gradlew "${GRADLE_QA_ARGS[@]}" :app:testD
 run_step "Compose recomposition regressions" ./gradlew "${GRADLE_QA_ARGS[@]}" \
   :ui-liquid-glass:testDebugUnitTest \
   --tests os.kei.ui.page.main.widget.sheet.SheetContentRecompositionTest \
+  --tests os.kei.ui.page.main.widget.sheet.LiquidSheetContentScrollTest \
   --tests os.kei.ui.page.main.widget.glass.AppFloatingKeyboardLiftRecompositionTest \
   --tests os.kei.ui.page.main.widget.glass.LiquidSliderRecompositionTest \
   --tests os.kei.ui.page.main.widget.chrome.LiquidBottomBarRecompositionTest \
@@ -130,6 +131,9 @@ run_step "Compose recomposition regressions" ./gradlew "${GRADLE_QA_ARGS[@]}" \
   --tests os.kei.ui.page.main.ba.card.BaAccountPagerRecompositionTest \
   --tests os.kei.ui.page.main.widget.chrome.AppPageScaffoldInteractionTest \
   --tests os.kei.ui.page.main.widget.chrome.AppPageInsetRecompositionTest
+run_step "Long Release Notes rendering" ./gradlew "${GRADLE_QA_ARGS[@]}" \
+  :app:testDebugUnitTest \
+  --tests os.kei.ui.page.main.github.sheet.GitHubReleaseNotesRenderingTest
 
 if [[ "$WITH_AUDIT" -eq 1 ]]; then
   if AUDIT_INIT_SCRIPT="$(resolve_audit_init_script)"; then
