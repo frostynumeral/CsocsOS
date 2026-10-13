@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -32,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import os.kei.ui.page.main.widget.motion.AppMotionTokens
@@ -98,12 +100,29 @@ fun appPageContentPadding(
     sideGutterStart: Dp = 0.dp,
     sideGutterEnd: Dp = 0.dp,
 ): PaddingValues =
-    PaddingValues(
-        top = innerPadding.calculateTopPadding() + topExtra,
-        bottom = innerPadding.calculateBottomPadding() + bottomExtra,
+    AppPageInsetPaddingValues(
+        base = innerPadding,
+        topExtra = topExtra,
+        bottomExtra = bottomExtra,
         start = AppChromeTokens.pageHorizontalPadding + sideGutterStart,
         end = AppChromeTokens.pageHorizontalPadding + sideGutterEnd,
     )
+
+/** Preserve dynamic scaffold insets until the consuming layout reads them. */
+private class AppPageInsetPaddingValues(
+    private val base: PaddingValues,
+    private val topExtra: Dp = 0.dp,
+    private val bottomExtra: Dp = 0.dp,
+    private val start: Dp = 0.dp,
+    private val end: Dp = 0.dp,
+    private val includeTop: Boolean = true,
+    private val includeBottom: Boolean = true,
+) : PaddingValues {
+    override fun calculateTopPadding(): Dp = if (includeTop) base.calculateTopPadding() + topExtra else 0.dp
+    override fun calculateBottomPadding(): Dp = (if (includeBottom) base.calculateBottomPadding() else 0.dp) + bottomExtra
+    override fun calculateLeftPadding(layoutDirection: LayoutDirection): Dp = if (layoutDirection == LayoutDirection.Ltr) start else end
+    override fun calculateRightPadding(layoutDirection: LayoutDirection): Dp = if (layoutDirection == LayoutDirection.Ltr) end else start
+}
 
 fun appPageBottomPaddingWithFloatingOverlay(contentBottomPadding: Dp): Dp =
     contentBottomPadding + AppChromeTokens.pageFloatingOverlayBottomExtra
@@ -201,16 +220,9 @@ fun AppPageScaffold(
                 floatingToolbarPosition = floatingToolbarPosition,
                 snackbarHost = snackbarHost,
                 content = { innerPadding ->
-                    val layoutDirection = LocalLayoutDirection.current
-                    val searchBarPlaceholderHeight = searchBarPlaceholderHeightState.value
                     val adjustedPadding =
-                        remember(innerPadding, layoutDirection, searchBarPlaceholderHeight) {
-                            PaddingValues(
-                                top = innerPadding.calculateTopPadding() + searchBarPlaceholderHeight,
-                                bottom = innerPadding.calculateBottomPadding(),
-                                start = innerPadding.calculateStartPadding(layoutDirection),
-                                end = innerPadding.calculateEndPadding(layoutDirection),
-                            )
+                        remember(innerPadding, searchBarPlaceholderHeightState) {
+                            SearchBarInsetPaddingValues(innerPadding, searchBarPlaceholderHeightState)
                         }
                     currentContent.value(adjustedPadding)
                 },
@@ -240,6 +252,17 @@ fun AppPageScaffold(
             }
         }
     }
+}
+
+/** The inset is read where padding is used, normally by the list or Modifier.padding during layout. */
+private class SearchBarInsetPaddingValues(
+    private val base: PaddingValues,
+    private val searchHeight: State<Dp>,
+) : PaddingValues {
+    override fun calculateTopPadding(): Dp = base.calculateTopPadding() + searchHeight.value
+    override fun calculateBottomPadding(): Dp = base.calculateBottomPadding()
+    override fun calculateLeftPadding(layoutDirection: LayoutDirection): Dp = base.calculateLeftPadding(layoutDirection)
+    override fun calculateRightPadding(layoutDirection: LayoutDirection): Dp = base.calculateRightPadding(layoutDirection)
 }
 
 @Composable
@@ -327,12 +350,10 @@ fun AppPageTwoColumnLists(
     // wrapped in AppEdgeStackKeepAlive is measured taller than its bounds and placed that far *up*, so an
     // un-inset header sits in the invisible headroom above the screen and is clipped away. That is exactly
     // what hid BA's account card.
-    val topInset = innerPadding.calculateTopPadding() + topExtra
     val columnPadding =
-        PaddingValues(
-            top = if (header == null) topInset else 0.dp,
-            bottom = innerPadding.calculateBottomPadding() + bottomExtra,
-        )
+        remember(innerPadding, topExtra, bottomExtra, header == null) {
+            AppPageInsetPaddingValues(innerPadding, topExtra, bottomExtra, includeTop = header == null)
+        }
     Column(
         modifier =
             modifier.padding(
@@ -345,7 +366,10 @@ fun AppPageTwoColumnLists(
         // across two there is no "first". It stays put while the columns move under it, which for the card
         // that names whose data this is reads as a gain rather than a loss.
         if (header != null) {
-            Box(modifier = Modifier.padding(top = topInset, bottom = sectionSpacing)) {
+            val headerPadding = remember(innerPadding, topExtra, sectionSpacing) {
+                AppPageInsetPaddingValues(innerPadding, topExtra, sectionSpacing, includeBottom = false)
+            }
+            Box(modifier = Modifier.padding(headerPadding)) {
                 header()
             }
         }
@@ -403,16 +427,16 @@ fun AppPageTwoColumnPanes(
 ) {
     val gutterStart = appPageSideGutterStart(maxContentWidth)
     val gutterEnd = appPageSideGutterEnd(maxContentWidth)
+    val panePadding = remember(innerPadding, topExtra, bottomExtra) {
+        AppPageInsetPaddingValues(innerPadding, topExtra, bottomExtra)
+    }
     Row(
         modifier =
             modifier
                 .padding(
                     start = AppChromeTokens.pageHorizontalPadding + gutterStart,
                     end = AppChromeTokens.pageHorizontalPadding + gutterEnd,
-                ).padding(
-                    top = innerPadding.calculateTopPadding() + topExtra,
-                    bottom = innerPadding.calculateBottomPadding() + bottomExtra,
-                ),
+                ).padding(panePadding),
         horizontalArrangement = Arrangement.spacedBy(AppPageColumnGap),
     ) {
         // The weight lives here rather than in the slots, so a caller cannot give one pane more than the

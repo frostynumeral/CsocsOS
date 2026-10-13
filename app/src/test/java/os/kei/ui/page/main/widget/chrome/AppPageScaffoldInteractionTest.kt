@@ -3,9 +3,11 @@ package os.kei.ui.page.main.widget.chrome
 import android.app.Application
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
@@ -40,6 +42,45 @@ import kotlin.test.assertTrue
 class AppPageScaffoldInteractionTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun searchHeightAnimationMovesPaddingWithoutRecomposingTheBody() {
+        val visible = mutableStateOf(false)
+        var bodyCompositions = 0
+        composeRule.mainClock.autoAdvance = false
+        composeRule.setContent {
+            MiuixTheme(controller = ThemeController(ColorSchemeMode.Light)) {
+                AppPageScaffold(
+                    title = "Page title",
+                    searchBarVisible = visible.value,
+                    searchBarContent = { Box(Modifier.fillMaxWidth().height(AppChromeTokens.searchBarHostHeight)) },
+                ) { padding ->
+                    SideEffect { bodyCompositions++ }
+                    Box(Modifier.fillMaxSize().padding(appPageContentPadding(padding))) {
+                        Box(Modifier.size(24.dp).testTag("body-marker"))
+                    }
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        val hiddenTop = composeRule.onNodeWithTag("body-marker").fetchSemanticsNode().boundsInRoot.top
+        composeRule.runOnIdle { visible.value = true }
+        composeRule.waitForIdle()
+        // Finish the visibility transition's setup composition before measuring animation frames.
+        composeRule.mainClock.advanceTimeBy(64)
+        composeRule.waitForIdle()
+        val initialCompositions = bodyCompositions
+        repeat(20) {
+            composeRule.mainClock.advanceTimeBy(16)
+            composeRule.waitForIdle()
+        }
+        assertEquals(initialCompositions, bodyCompositions, "The animated inset belongs to layout")
+        assertEquals(
+            hiddenTop + with(composeRule.density) { AppChromeTokens.searchBarHostHeight.toPx() },
+            composeRule.onNodeWithTag("body-marker").fetchSemanticsNode().boundsInRoot.top,
+            absoluteTolerance = 1f,
+        )
+    }
 
     @Test
     fun topBarNavigationWinsHitTestingOverOverlappingBodyContent() {
@@ -120,7 +161,7 @@ class AppPageScaffoldInteractionTest {
     @Test
     fun searchBarPlaceholderKeepsScaffoldTopPaddingInSyncWithOverlay() {
         val searchVisible = mutableStateOf(false)
-        var contentTopPadding = 0.dp
+        var contentPadding: PaddingValues = PaddingValues()
         composeRule.setContent {
             MiuixTheme(controller = ThemeController(ColorSchemeMode.Light)) {
                 AppPageScaffold(
@@ -135,7 +176,7 @@ class AppPageScaffoldInteractionTest {
                     },
                 ) { padding ->
                     SideEffect {
-                        contentTopPadding = padding.calculateTopPadding()
+                        contentPadding = padding
                     }
                     Box(Modifier.fillMaxSize())
                 }
@@ -144,13 +185,14 @@ class AppPageScaffoldInteractionTest {
 
         composeRule.mainClock.advanceTimeBy(1_000)
         composeRule.waitForIdle()
-        val hiddenTopPadding: Dp = contentTopPadding
+        val hiddenTopPadding: Dp = contentPadding.calculateTopPadding()
 
         composeRule.runOnIdle { searchVisible.value = true }
         composeRule.mainClock.advanceTimeBy(1_000)
         composeRule.waitForIdle()
 
         composeRule.runOnIdle {
+            val contentTopPadding = contentPadding.calculateTopPadding()
             assertTrue(
                 contentTopPadding >= hiddenTopPadding + AppChromeTokens.searchBarHostHeight * 0.95f,
                 "Expected visible search placeholder to reserve its animated height, hidden=$hiddenTopPadding visible=$contentTopPadding",
