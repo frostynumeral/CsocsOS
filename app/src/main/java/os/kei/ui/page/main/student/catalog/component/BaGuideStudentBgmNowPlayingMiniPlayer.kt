@@ -3,7 +3,7 @@
 package os.kei.ui.page.main.student.catalog.component
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -41,21 +41,24 @@ internal fun BaGuideStudentBgmNowPlayingMiniPlayer(
                 emptyFlow()
             }
         }
-    val runtimeState by runtimeFlow.collectAsStateWithLifecycle(
+    val runtimeState = runtimeFlow.collectAsStateWithLifecycle(
         initialValue = playbackCoordinator.runtimeState,
     )
     val displayedRuntimeState =
         remember(runtimeState, seekPreviewProgress) {
-            if (seekPreviewProgress != null && runtimeState.durationMs > 0L) {
-                val durationMs = runtimeState.durationMs
-                runtimeState.copy(
-                    positionMs =
-                        (durationMs * seekPreviewProgress.coerceIn(0f, 1f))
-                            .toLong()
-                            .coerceIn(0L, durationMs),
-                )
-            } else {
-                runtimeState
+            derivedStateOf {
+                val current = runtimeState.value
+                if (seekPreviewProgress != null && current.durationMs > 0L) {
+                    val durationMs = current.durationMs
+                    current.copy(
+                        positionMs =
+                            (durationMs * seekPreviewProgress.coerceIn(0f, 1f))
+                                .toLong()
+                                .coerceIn(0L, durationMs),
+                    )
+                } else {
+                    current
+                }
             }
         }
 

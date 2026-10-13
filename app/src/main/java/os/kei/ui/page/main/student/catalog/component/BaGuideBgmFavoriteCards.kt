@@ -61,7 +61,7 @@ private val BgmFavoriteActionMenuMaxHeight = 336.dp
 
 @Composable
 internal fun BaGuideBgmPlaybackSeekBar(
-    progress: Float,
+    progress: () -> Float,
     enabled: Boolean,
     accent: Color,
     contentDescription: String,
@@ -77,7 +77,7 @@ internal fun BaGuideBgmPlaybackSeekBar(
                 .height(48.dp),
     ) {
         LiquidMusicProgressSlider(
-            value = { progress.coerceIn(0f, 1f) },
+            value = { progress().coerceIn(0f, 1f) },
             onValueChange = { value -> onSeekChanged(value.coerceIn(0f, 1f)) },
             onValueChangeFinished = { onSeekFinished() },
             onInteractionChanged = onInteractionChanged,

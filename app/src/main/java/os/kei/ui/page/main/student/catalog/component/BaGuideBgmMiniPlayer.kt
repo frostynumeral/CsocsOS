@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -51,7 +53,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun BaGuideBgmMiniPlayer(
     favorite: GuideBgmFavoriteItem,
-    runtimeState: BaGuideBgmPlaybackRuntimeState,
+    runtimeState: State<BaGuideBgmPlaybackRuntimeState>,
     queueIndex: Int,
     queueSize: Int,
     queueMode: BaGuideBgmQueueMode,
@@ -70,6 +72,13 @@ internal fun BaGuideBgmMiniPlayer(
     onOpenGuide: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val controls by remember(runtimeState) {
+        derivedStateOf {
+            val current = runtimeState.value
+            MiniPlayerControls(current.isPlaying, current.durationMs, current.volume)
+        }
+    }
+    val playbackProgress = remember(runtimeState) { { runtimeState.value.progress } }
     val studentName = favorite.studentTitle.ifBlank {
         stringResource(R.string.ba_catalog_bgm_student_unknown)
     }
@@ -87,7 +96,7 @@ internal fun BaGuideBgmMiniPlayer(
     val volumeDescription = stringResource(R.string.ba_catalog_bgm_volume)
     val volumeText = stringResource(
         R.string.ba_catalog_bgm_volume_value,
-        (runtimeState.volume * 100f).roundToInt().coerceIn(0, 100)
+        (controls.volume * 100f).roundToInt().coerceIn(0, 100)
     )
     val expandCollapseDescription = stringResource(
         if (expanded) {
@@ -97,7 +106,7 @@ internal fun BaGuideBgmMiniPlayer(
         }
     )
     val playPauseDescription = stringResource(
-        if (runtimeState.isPlaying) {
+        if (controls.isPlaying) {
             R.string.ba_catalog_bgm_action_pause
         } else {
             R.string.ba_catalog_bgm_action_play
@@ -106,7 +115,6 @@ internal fun BaGuideBgmMiniPlayer(
     val neutralControlTint = MiuixTheme.colorScheme.onBackgroundVariant
     val neutralControlContainer = MiuixTheme.colorScheme.surfaceContainer
     val primaryControlTint = MiuixTheme.colorScheme.onBackground
-    val timeText = "${formatAudioDuration(runtimeState.positionMs)} / ${formatAudioDuration(runtimeState.durationMs)}"
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
 
     GuideLiquidCard(
@@ -195,7 +203,7 @@ internal fun BaGuideBgmMiniPlayer(
                     containerColor = neutralControlContainer
                 )
                 AppStandaloneLiquidIconButton(
-                    icon = if (runtimeState.isPlaying) appLucidePauseIcon() else appLucidePlayIcon(),
+                    icon = if (controls.isPlaying) appLucidePauseIcon() else appLucidePlayIcon(),
                     contentDescription = playPauseDescription,
                     onClick = onTogglePlayback,
                     width = 40.dp,
@@ -208,8 +216,8 @@ internal fun BaGuideBgmMiniPlayer(
 
             if (!expanded) {
                 BaGuideBgmPlaybackSeekBar(
-                    progress = runtimeState.progress,
-                    enabled = runtimeState.durationMs > 0L,
+                    progress = playbackProgress,
+                    enabled = controls.durationMs > 0L,
                     accent = accent,
                     contentDescription = seekDescription,
                     onSeekChanged = onSeekChanged,
@@ -224,8 +232,8 @@ internal fun BaGuideBgmMiniPlayer(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     BaGuideBgmPlaybackSeekBar(
-                        progress = runtimeState.progress,
-                        enabled = runtimeState.durationMs > 0L,
+                        progress = playbackProgress,
+                        enabled = controls.durationMs > 0L,
                         accent = accent,
                         contentDescription = seekDescription,
                         onSeekChanged = onSeekChanged,
@@ -238,15 +246,7 @@ internal fun BaGuideBgmMiniPlayer(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = timeText,
-                            color = MiuixTheme.colorScheme.onBackgroundVariant,
-                            fontSize = AppTypographyTokens.Supporting.fontSize,
-                            lineHeight = AppTypographyTokens.Supporting.lineHeight,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
+                        MiniPlayerTimeLabel(runtimeState, Modifier.weight(1f))
                         AppStandaloneLiquidIconButton(
                             icon = appLucideListIcon(),
                             contentDescription = openQueueDescription,
@@ -312,7 +312,7 @@ internal fun BaGuideBgmMiniPlayer(
                     }
 
                     BaGuideBgmVolumeRow(
-                        volume = runtimeState.volume,
+                        volume = controls.volume,
                         contentDescription = volumeDescription,
                         valueText = volumeText,
                         onVolumeChanged = onVolumeChanged,
@@ -322,6 +322,27 @@ internal fun BaGuideBgmMiniPlayer(
             }
         }
     }
+}
+
+private data class MiniPlayerControls(val isPlaying: Boolean, val durationMs: Long, val volume: Float)
+
+@Composable
+private fun MiniPlayerTimeLabel(runtimeState: State<BaGuideBgmPlaybackRuntimeState>, modifier: Modifier) {
+    val seconds by remember(runtimeState) {
+        derivedStateOf {
+            val current = runtimeState.value
+            current.positionMs / 1_000L to current.durationMs / 1_000L
+        }
+    }
+    Text(
+        text = "${formatAudioDuration(seconds.first * 1_000L)} / ${formatAudioDuration(seconds.second * 1_000L)}",
+        color = MiuixTheme.colorScheme.onBackgroundVariant,
+        fontSize = AppTypographyTokens.Supporting.fontSize,
+        lineHeight = AppTypographyTokens.Supporting.lineHeight,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
 }
 
 @Composable
