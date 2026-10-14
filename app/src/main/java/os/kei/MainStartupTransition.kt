@@ -6,6 +6,7 @@ import android.animation.ValueAnimator
 import android.os.SystemClock
 import android.view.ViewTreeObserver
 import android.view.animation.DecelerateInterpolator
+import android.window.SplashScreen
 import android.window.SplashScreenView
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Stable
@@ -25,7 +26,10 @@ internal val LocalMainStartupTransition = staticCompositionLocalOf<MainStartupTr
 
 /** Holds the system launch surface until local state and the requested destination have composed. */
 @Stable
-internal class MainStartupTransition(activity: ComponentActivity) {
+internal class MainStartupTransition(
+    activity: ComponentActivity,
+    private val splashScreen: SplashScreen = activity.splashScreen,
+) {
     var hasPresented by mutableStateOf(false)
         private set
     private var contentReady = false
@@ -38,6 +42,7 @@ internal class MainStartupTransition(activity: ComponentActivity) {
     private var splashView: SplashScreenView? = null
     private var exitAnimator: ValueAnimator? = null
     private var revealScheduled = false
+    private var splashExitComplete = false
     private val timeout = Runnable { view.invalidate() }
     private val reveal = Runnable { animateSplashExit() }
     private val prepareReveal = Runnable { view.postOnAnimation(reveal) }
@@ -55,7 +60,13 @@ internal class MainStartupTransition(activity: ComponentActivity) {
     init {
         view.viewTreeObserver.addOnPreDrawListener(drawGate)
         view.postDelayed(timeout, MAX_FIRST_DRAW_WAIT_MS)
-        activity.splashScreen.setOnExitAnimationListener { splash ->
+        splashScreen.setOnExitAnimationListener { splash ->
+            // HyperOS can transfer another splash when a notification/shortcut reuses this
+            // Activity. Only the initial launch owns our preparation gate and exit animation.
+            if (splashExitComplete || splashView != null) {
+                splash.remove()
+                return@setOnExitAnimationListener
+            }
             splashView = splash
             if (!contentReady) {
                 removeSplash()
@@ -88,9 +99,6 @@ internal class MainStartupTransition(activity: ComponentActivity) {
 
     fun dispose() {
         removeDrawGate()
-        view.removeCallbacks(prepareReveal)
-        view.removeCallbacks(reveal)
-        view.removeCallbacks(revealTimeout)
         exitAnimator?.cancel()
         exitAnimator = null
         removeSplash()
@@ -120,7 +128,10 @@ internal class MainStartupTransition(activity: ComponentActivity) {
             interpolator = DecelerateInterpolator()
             addUpdateListener { splash.alpha = it.animatedValue as Float }
             addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: Animator) = removeSplash()
+                override fun onAnimationEnd(animation: Animator) {
+                    exitAnimator = null
+                    removeSplash()
+                }
             })
             start()
         }
@@ -132,6 +143,11 @@ internal class MainStartupTransition(activity: ComponentActivity) {
     }
 
     private fun removeSplash() {
+        splashExitComplete = true
+        splashScreen.clearOnExitAnimationListener()
+        view.removeCallbacks(prepareReveal)
+        view.removeCallbacks(reveal)
+        view.removeCallbacks(revealTimeout)
         splashView?.remove()
         splashView = null
     }
