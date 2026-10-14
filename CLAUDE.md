@@ -18,6 +18,8 @@ Follow [AGENTS.md](AGENTS.md) for shared repository rules. This file keeps only 
 ./gradlew :app:compileDebugKotlin                 # fast compile check
 ./gradlew :app:assembleDebug                      # installs as os.kei.debug
 ./gradlew :<module>:testDebugUnitTest             # unit tests for one module
+./gradlew testDebugUnitTest -Proborazzi.test.verify=true --continue   # all modules, screenshots verified (release-gate form)
+./gradlew :app:lintVitalRelease                   # lint; app sets abortOnError = true
 ./gradlew :feature-github:testDebugUnitTest --tests "os.kei.feature.github.data.apk.RemoteZipEntryReaderTest"   # single test class
 ./gradlew :app:verifyRoborazziDebug --tests "<ScreenshotTest>"   # screenshot check; record with recordRoborazziDebug
 ./gradlew -p build-logic check                    # convention plugins, no device needed
@@ -34,7 +36,7 @@ scripts/qa/test_report.sh                         # summarize unit test results
 - Layering: `app` → `feature-*` → `core-*`. `ui-liquid-glass` and `ui-pip` are standalone UI libraries consumed by `app`. `feature-github-engine` holds the GitHub release/download engine beneath `feature-github`; `feature-mcp` is the shared MCP contract that the BA, OS, Home, and GitHub modules build on.
 - Most Compose UI lives in `app` (`os.kei.ui.page.main`, `os.kei.feature.*`, `os.kei.ui.navigation`). Feature modules mostly hold domain, data, and MCP tool code; `feature-github` is the largest. Check the owning module before adding code to `app`.
 - `build-logic/` is an included build of convention plugins (`keios.android.application/library/compose/test`, `keios.miuix`) that owns SDK/JDK defaults, Compose compiler settings, and Miuix substitution. Change shared build behavior there, not in individual modules. See build-logic/README.md.
-- Build types include debug, benchmark, release, nonMinifiedRelease, and releaseDiagnostic. Benchmark and release both install as `os.kei` and read Baseline Profiles from `app/src/release/generated/baselineProfiles/`, which the `baselineprofile` module generates.
+- Build types and their packages: debug (`os.kei.debug`), release and benchmark (both `os.kei`), releaseDiagnostic (`os.kei.diag`, R8-identical to release so it can sit beside it for A/B measurement), and nonMinifiedRelease (`os.kei.profilecapture`, profileable and used by connected Baseline Profile tasks, which install and uninstall it). Release and benchmark read Baseline Profiles from `app/src/release/generated/baselineProfiles/`, which the `baselineprofile` module generates.
 
 ## Shared tools and tests
 
