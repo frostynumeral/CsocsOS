@@ -32,7 +32,7 @@ scripts/qa/test_report.sh                         # summarize unit test results
 
 ## Architecture
 
-- Gradle modules are listed in settings.gradle.kts. Other top-level directories such as CorpusProcessor/, GetPriceDataFromYahoo/, HungarianKeyboard/, SchrödingersCAT/, and TaltOS/ are not part of the KeiOS build.
+- Gradle modules are listed in settings.gradle.kts.
 - Layering: `app` → `feature-*` → `core-*`. `ui-liquid-glass` and `ui-pip` are standalone UI libraries consumed by `app`. `feature-github-engine` holds the GitHub release/download engine beneath `feature-github`; `feature-mcp` is the shared MCP contract that the BA, OS, Home, and GitHub modules build on.
 - Most Compose UI lives in `app` (`os.kei.ui.page.main`, `os.kei.feature.*`, `os.kei.ui.navigation`). Feature modules mostly hold domain, data, and MCP tool code; `feature-github` is the largest. Check the owning module before adding code to `app`.
 - `build-logic/` is an included build of convention plugins (`keios.android.application/library/compose/test`, `keios.miuix`) that owns SDK/JDK defaults, Compose compiler settings, and Miuix substitution. Change shared build behavior there, not in individual modules. See build-logic/README.md.
